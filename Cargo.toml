@@ -36,7 +36,7 @@ path-clean = "1.0.1"
 rpassword = "7.4"
 base64 = "0.22"
 tempfile = "3.21"
-regex = "1.11"
+regex = "1.12"
 semver = "1.0"
 sequoia-openpgp = { version = "=2.1.0", default-features = false, features = [
     "compression",
