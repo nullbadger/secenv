@@ -7,6 +7,7 @@ Secure, profile-based environment variable management with HOCON configuration, 
 - 🔐 **PGP decryption**: Decrypt PGP-encrypted values using a private key provided via file, literal, GPG keyring (by fingerprint), or GCP Secret Manager
 - ☁️ **GCP Secret Manager**: Fetch the PGP private key at runtime via `gcloud`
 - 🗂️ **Profiles**: Organize variables by profile (dev, staging, prod, …)
+- 🪪 **Profile gates**: Optionally require the current user's system biometrics or password, a dedicated profile password, or both before unlock and seal
 - 📄 **Temporary files**: Create temporary files with plain or encrypted content that are automatically cleaned up after command execution
 - **Sealed HOCON/JSON**: Decrypt marked scalar values in place or render them from templates for the command lifetime
 - 🧪 **Docs & tooling**: Built-in manual and shell completion generators
@@ -153,6 +154,49 @@ SECRET_TOKEN=...
 ```
 
 **Note**: When executing a command, files defined in `profiles.<profile>.files` are created before the command runs and deleted afterward. With `--force`, a pre-existing file is restored instead of deleted.
+
+## Profile authentication
+
+Each profile can require the current user's system biometrics or password, a dedicated profile password, or both. The checks are independent. Omit `auth` to keep the previous behavior. Both run before `unlock` or `seal` resolves any secret.
+
+```hocon
+profiles.production.auth {
+  # Fresh operating-system prompt for the current user.
+  # macOS: Touch ID when this process can use it, or that user's password.
+  #        Enter Password remains available when Touch ID is shown. secenv never
+  #        reads this password, and a previous biometric unlock is not reused.
+  # Linux: the sudo PAM stack. Fingerprint if that stack is configured for it,
+  #        otherwise the current user's password from the terminal, not stdin.
+  system = true
+
+  # Quoted Argon2id verifier from `secenv auth password`. The `$` characters are
+  # literal only inside quotes.
+  password = "$argon2id$v=19$m=19456,t=2,p=1$..."
+}
+```
+
+Generate a verifier and paste it into the profile. secenv does not rewrite the config, because round-tripping HOCON would discard comments and substitutions:
+
+```bash
+secenv auth password
+```
+
+Supply that profile password with `--password`, or enter it at the prompt. The prompt reads the terminal, so it still works when `seal` is reading plaintext from stdin. `--password` can appear in shell history and process listings; prefer the prompt for interactive use.
+
+```bash
+secenv unlock --profile production
+secenv seal --profile production --password "$PROFILE_PASSWORD" --env-var DATABASE_PASSWORD
+```
+
+`auth.system` is a human presence check for the current user. Piping a password into secenv cannot satisfy it, and another account is not accepted.
+
+On macOS, the system dialog accepts Touch ID or that user's password, not Apple Watch. If Touch ID is unavailable, not enrolled, or not permitted for this process, macOS asks for the password instead of skipping the check. The dialog needs a local graphical session.
+
+On Linux, secenv asks the `sudo` PAM stack. A fingerprint is offered only when that stack includes one. Otherwise the current user's password is read from the terminal. This needs `/dev/tty` and a PAM installation. It does not open a login session.
+
+On any other platform, or when the platform cannot show its prompt, the command fails.
+
+These gates apply to the secenv binary you run. Editing the config or replacing the binary can remove them. They do not re-encrypt sealed values.
 
 ## Temporary files
 
@@ -409,6 +453,10 @@ profiles = {
         }
       }
     },
+    auth = {                       # optional; either field may be used alone
+      system = true              # current user's biometrics or password
+      password = "<argon2id verifier>"
+    }
     files = { ... }              # optional
     env = { 
       keep = [<regex>],          # optional
@@ -515,6 +563,7 @@ Options:
   -p, --profile <name>    Profile name (default: default)
   -f, --force             Overwrite existing files defined in the manifest
       --timeout <seconds> Maximum subcommand runtime; requires COMMAND
+      --password <password> Profile password required by auth.password
 ```
 
 Behavior:
@@ -544,9 +593,19 @@ Options:
       --for <path>        Configured in-place path or template output path
       --env-var <name>    Profile environment variable configured with sealed content
       --path <json-pointer> RFC 6901 pointer to one string in the configured source document
+      --password <password> Profile password required by auth.password
 ```
 
 Exactly one of `--for` or `--env-var` is required. Without `--path`, plaintext comes from positional `VALUE`, or exactly from piped stdin when `VALUE` is omitted, and the marker is written to stdout. Direct values may be exposed through shell history and process listings. With `--path`, `VALUE` is rejected, the selected source document is updated, and the resulting marker is also written to stdout. `--path` is valid only with `--for`; `--env-var` never rewrites the manifest.
+
+### auth password
+Print an Argon2id verifier for `profiles.<name>.auth.password`.
+
+```bash
+secenv auth password
+```
+
+The password is prompted twice on the terminal and is not accepted as an argument. Only the verifier is written to stdout.
 
 ### man
 Render the manual pages or markdown help.
@@ -588,6 +647,8 @@ Notes:
 - GCP access errors: Check `gcloud` authentication, project, permissions, and secret name.
 - PGP decryption errors: Ensure the private key is valid ASCII‑armored and corresponds to the message.
 - Sealed value errors: Ensure each marker uses `ENC[PGP,<base64>]` or `ENC[ARGON2ID-XCHACHA20-POLY1305,<base64>]` and matches its file or profile-variable configuration.
+- System authentication errors: `auth.system` requires an interactive prompt for the current user. It cannot be skipped with a piped password. On macOS, enter that user's password in the system dialog when Touch ID is unavailable. On Linux, the `sudo` PAM stack must be installed and `/dev/tty` must be available.
+- Profile password errors: Generate the verifier with `secenv auth password` and quote it in HOCON. Pass the same password with `--password` or at the prompt. A password passed to a profile that does not set `auth.password` is rejected.
 - File cleanup errors: Cleanup failures are reported as command failures and retried when the file manager is dropped.
 
 ## Testing

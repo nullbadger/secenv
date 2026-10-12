@@ -2,6 +2,8 @@
 resolver = "2"
 members = [
     "crates/secenv",
+    "crates/secenv-system-linux",
+    "crates/secenv-system-macos",
 ]
 
 [workspace.package]
@@ -46,6 +48,28 @@ sequoia-openpgp = { version = "=2.1.0", default-features = false, features = [
 # provider from vendored source instead of requiring system nettle/OpenSSL.
 openssl-sys = { version = "0.9", features = ["vendored"] }
 zeroize = "1.8"
-argon2 = { version = "0.5", features = ["zeroize"] }
+argon2 = { version = "0.5", features = ["password-hash", "zeroize"] }
+# Platform crates own the OS prompts. secenv only calls authenticate(reason).
+secenv-system-linux = { path = "crates/secenv-system-linux" }
+secenv-system-macos = { path = "crates/secenv-system-macos" }
+objc2 = { version = "0.6.3", default-features = false, features = ["std"] }
+objc2-foundation = { version = "0.3.2", default-features = false, features = [
+    "std",
+    "NSDate",
+    "NSError",
+    "NSObjCRuntime",
+    "NSRunLoop",
+    "NSString",
+] }
+objc2-local-authentication = { version = "0.3.2", default-features = false, features = [
+    "std",
+    "LAContext",
+    "LAError",
+    "LAPublicDefines",
+    "block2",
+] }
+block2 = { version = "0.6.2", default-features = false, features = ["alloc"] }
+pam-client = "0.5.0"
+whoami = "1.6.0"
 chacha20poly1305 = { version = "0.10", default-features = false, features = ["alloc"] }
 rand = { version = "0.8", default-features = false, features = ["getrandom"] }

@@ -1,0 +1,17 @@
+[package]
+name = "secenv-system-linux"
+version = { workspace = true }
+authors = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = false
+description = "Linux current-user authentication for secenv."
+
+[dependencies]
+anyhow = { workspace = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+pam-client = { workspace = true }
+rpassword = { workspace = true }
+whoami = { workspace = true }
+zeroize = { workspace = true }

@@ -1,0 +1,17 @@
+[package]
+name = "secenv-system-macos"
+version = { workspace = true }
+authors = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = false
+description = "macOS current-user authentication for secenv."
+
+[dependencies]
+anyhow = { workspace = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+block2 = { workspace = true }
+objc2 = { workspace = true }
+objc2-foundation = { workspace = true }
+objc2-local-authentication = { workspace = true }

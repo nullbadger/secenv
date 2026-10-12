@@ -1,4 +1,5 @@
 mod args;
+mod auth;
 mod aws;
 mod gcp;
 mod gpg;
@@ -59,6 +60,7 @@ async fn main() -> Result<ExitCode> {
             action,
             force,
             timeout,
+            password,
         } => {
             manifest.warn_if_insecure_permissions();
 
@@ -68,6 +70,10 @@ async fn main() -> Result<ExitCode> {
                 .profiles
                 .get(profile_name.as_str())
                 .with_context(|| format!("Profile '{}' not found in manifest", profile_name))?;
+            // Before the first await, so the system prompt stays on the process main
+            // thread.
+            crate::auth::ProfileGate::new(profile_name.as_str(), profile.auth.as_ref())
+                .enforce(crate::auth::ProfileOperation::Unlock, password)?;
 
             let mut secret_source_env_vars: Vec<_> =
                 profile.secret_environment_variables().map(str::to_owned).collect();
@@ -203,12 +209,15 @@ async fn main() -> Result<ExitCode> {
             profile_name,
             target,
             input,
+            password,
         } => {
             manifest.warn_if_insecure_permissions();
             let profile = manifest
                 .profiles
                 .get(&profile_name)
                 .with_context(|| format!("Profile '{}' not found in manifest", profile_name))?;
+            crate::auth::ProfileGate::new(profile_name.as_str(), profile.auth.as_ref())
+                .enforce(crate::auth::ProfileOperation::Seal, password)?;
             let pgp_manager = crate::pgp::PgpManager::default();
             let mut secret_source_env_vars: Vec<_> =
                 profile.secret_environment_variables().map(str::to_owned).collect();
@@ -304,6 +313,17 @@ async fn main() -> Result<ExitCode> {
                 stdout,
                 "Note: Remove '_EXAMPLE' suffix from variable names before using them."
             )?;
+            Ok(ExitCode::SUCCESS)
+        },
+        | args::Command::AuthPassword => {
+            let verifier = crate::auth::ProfilePasswordVerifier::prompt_new()?;
+            let stdout = std::io::stdout();
+            let mut stdout = stdout.lock();
+            writeln!(
+                std::io::stderr(),
+                "Paste this verifier into profiles.<name>.auth.password. secenv does not rewrite the config."
+            )?;
+            writeln!(stdout, "{}", verifier.as_str()).context("Failed to write profile password verifier")?;
             Ok(ExitCode::SUCCESS)
         },
     }

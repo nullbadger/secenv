@@ -1,5 +1,6 @@
 use {
     crate::{
+        auth::ProfileAuth,
         aws::{
             AwsSecretManager,
             AwsSecretSpec,
@@ -409,6 +410,7 @@ impl Manifest {
         });
 
         let default_profile = ManifestProfile {
+            auth: None,
             sealed: None,
             files,
             env: ManifestEnv {
@@ -437,6 +439,11 @@ impl Manifest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) struct ManifestProfile {
+    /// Optional system and profile-password gates. Absent means neither
+    /// is required.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) auth: Option<ProfileAuth>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) sealed: Option<SealedFiles>,
 
@@ -449,6 +456,9 @@ pub(crate) struct ManifestProfile {
 
 impl ManifestProfile {
     fn validate(&self) -> Result<()> {
+        if let Some(auth) = &self.auth {
+            auth.validate()?;
+        }
         for (path, content) in &self.files {
             if matches!(&content.inner, Content::Sealed { .. }) {
                 anyhow::bail!(
@@ -796,7 +806,71 @@ mod tests {
 
         let profile = manifest.profiles.get("default").context("Missing default profile")?;
         assert!(profile.sealed.is_none());
+        assert!(profile.auth.is_none());
         Ok(())
+    }
+
+    #[test]
+    fn parses_optional_profile_auth_independently() -> Result<()> {
+        let verifier = crate::auth::ProfilePasswordVerifier::generate("profile-secret")?;
+        let manifest: Manifest = hocon::de::from_str(&format!(
+            r#"
+            version = "0.0.0"
+            profiles.system_only.auth.system = true
+            profiles.password.auth.password = "{}"
+            profiles.both.auth {{
+              system = true
+              password = "{}"
+            }}
+            "#,
+            verifier.as_str(),
+            verifier.as_str(),
+        ))?;
+
+        let system_only = &manifest.profiles["system_only"]
+            .auth
+            .as_ref()
+            .context("Missing system auth")?;
+        assert!(system_only.system);
+        assert!(system_only.password.is_none());
+
+        let password = &manifest.profiles["password"]
+            .auth
+            .as_ref()
+            .context("Missing password auth")?;
+        assert!(!password.system);
+        password
+            .password
+            .as_ref()
+            .context("Missing password verifier")?
+            .verify("profile-secret")?;
+
+        let both = &manifest.profiles["both"]
+            .auth
+            .as_ref()
+            .context("Missing combined auth")?;
+        assert!(both.system);
+        assert!(both.password.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_unknown_auth_fields_and_weak_password_verifiers() {
+        let unknown = hocon::de::from_str::<Manifest>(
+            r#"
+            version = "0.0.0"
+            profiles.default.auth.touch_id = true
+            "#,
+        );
+        assert!(unknown.is_err(), "unknown auth field should be rejected");
+
+        let weak = hocon::de::from_str::<Manifest>(
+            r#"
+            version = "0.0.0"
+            profiles.default.auth.password = "not-a-verifier"
+            "#,
+        );
+        assert!(weak.is_err(), "malformed password verifier should be rejected");
     }
 
     #[test]

@@ -71,17 +71,21 @@ pub(crate) enum Command {
         action: UnlockAction,
         force: bool,
         timeout: Option<std::time::Duration>,
+        password: Option<Zeroizing<String>>,
     },
     Seal {
         manifest: Manifest,
         profile_name: String,
         target: SealTarget,
         input: SealInput,
+        password: Option<Zeroizing<String>>,
     },
     Init {
         path: PathBuf,
         force: bool,
     },
+    /// Print an Argon2id verifier for `profiles.<name>.auth.password`.
+    AuthPassword,
 }
 
 pub(crate) struct ClapArgumentLoader {}
@@ -162,6 +166,7 @@ impl ClapArgumentLoader {
                             .requires("command")
                             .help("Maximum subcommand runtime in seconds"),
                     )
+                    .arg(Self::profile_password_arg())
                     .arg(
                         clap::Arg::new("command")
                             .help("Command to execute with environment variables set")
@@ -219,6 +224,16 @@ impl ClapArgumentLoader {
                             .args(["configured_file", "environment_variable"])
                             .required(true)
                             .multiple(false),
+                    )
+                    .arg(Self::profile_password_arg()),
+            )
+            .subcommand(
+                clap::Command::new("auth")
+                    .about("Profile authentication helpers.")
+                    .subcommand_required(true)
+                    .arg_required_else_help(true)
+                    .subcommand(
+                        clap::Command::new("password").about("Print an Argon2id verifier for a profile password."),
                     ),
             )
             .subcommand(
@@ -240,6 +255,19 @@ impl ClapArgumentLoader {
                             .help("Overwrite existing file"),
                     ),
             )
+    }
+
+    fn profile_password_arg() -> clap::Arg {
+        clap::Arg::new("password")
+            .long("password")
+            .value_name("PASSWORD")
+            .help("Profile password required by auth.password; not a sealed-value passphrase")
+    }
+
+    fn profile_password(matches: &clap::ArgMatches) -> Option<Zeroizing<String>> {
+        matches
+            .get_one::<String>("password")
+            .map(|password| Zeroizing::new(password.clone()))
     }
 
     pub(crate) fn load() -> Result<Command> {
@@ -296,6 +324,7 @@ impl ClapArgumentLoader {
                 action,
                 force,
                 timeout,
+                password: Self::profile_password(subc),
             }
         } else if command.subcommand_name() == Some("seal") {
             let (_, mut subc) = command.remove_subcommand().context("Missing seal arguments")?;
@@ -329,6 +358,13 @@ impl ClapArgumentLoader {
                 profile_name,
                 target,
                 input,
+                password: Self::profile_password(&subc),
+            }
+        } else if let Some(subc) = command.subcommand_matches("auth") {
+            if subc.subcommand_matches("password").is_some() {
+                Command::AuthPassword
+            } else {
+                anyhow::bail!("unknown auth command")
             }
         } else if let Some(subc) = command.subcommand_matches("init") {
             let config_path = Self::get_absolute_path(subc, "path")?;
@@ -411,6 +447,34 @@ mod tests {
                 "/password",
             ])
             .is_err());
+    }
+
+    #[test]
+    fn unlock_and_seal_accept_a_profile_password() {
+        let unlock = ClapArgumentLoader::root_command()
+            .try_get_matches_from(["secenv", "unlock", "--password", "profile-secret"])
+            .unwrap();
+        let unlock = unlock.subcommand_matches("unlock").unwrap();
+        assert_eq!(unlock.get_one::<String>("password").unwrap(), "profile-secret");
+
+        let seal = ClapArgumentLoader::root_command()
+            .try_get_matches_from([
+                "secenv",
+                "seal",
+                "--env-var",
+                "DATABASE_PASSWORD",
+                "--password",
+                "profile-secret",
+                "sealed-value",
+            ])
+            .unwrap();
+        let seal = seal.subcommand_matches("seal").unwrap();
+        assert_eq!(seal.get_one::<String>("password").unwrap(), "profile-secret");
+        assert_eq!(seal.get_one::<String>("value").unwrap(), "sealed-value");
+
+        assert!(ClapArgumentLoader::root_command()
+            .try_get_matches_from(["secenv", "auth", "password"])
+            .is_ok());
     }
 
     #[test]
