@@ -1532,48 +1532,30 @@ dependencies = [
  "anyhow",
  "argon2",
  "base64",
+ "block2",
  "chacha20poly1305",
  "clap",
  "clap-markdown",
  "clap_complete",
  "clap_mangen",
  "hocon",
+ "objc2",
+ "objc2-foundation",
+ "objc2-local-authentication",
  "openssl-sys",
+ "pam-client",
  "path-clean",
  "rand",
  "regex",
  "rpassword 7.4.0",
- "secenv-system-linux",
- "secenv-system-macos",
  "semver",
  "sequoia-openpgp",
  "serde",
  "serde_json",
  "tempfile",
  "tokio",
- "zeroize",
-]
-
-[[package]]
-name = "secenv-system-linux"
-version = "0.0.0"
-dependencies = [
- "anyhow",
- "pam-client",
- "rpassword 7.4.0",
  "whoami",
  "zeroize",
-]
-
-[[package]]
-name = "secenv-system-macos"
-version = "0.0.0"
-dependencies = [
- "anyhow",
- "block2",
- "objc2",
- "objc2-foundation",
- "objc2-local-authentication",
 ]
 
 [[package]]

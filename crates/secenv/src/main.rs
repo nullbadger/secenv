@@ -9,6 +9,10 @@ mod pgp;
 mod process;
 mod reference;
 mod sealed;
+#[cfg(target_os = "linux")]
+mod system_linux;
+#[cfg(target_os = "macos")]
+mod system_macos;
 
 use {
     anyhow::{

@@ -2,8 +2,6 @@
 resolver = "2"
 members = [
     "crates/secenv",
-    "crates/secenv-system-linux",
-    "crates/secenv-system-macos",
 ]
 
 [workspace.package]
@@ -49,9 +47,6 @@ sequoia-openpgp = { version = "=2.1.0", default-features = false, features = [
 openssl-sys = { version = "0.9", features = ["vendored"] }
 zeroize = "1.8"
 argon2 = { version = "0.5", features = ["password-hash", "zeroize"] }
-# Platform crates own the OS prompts. secenv only calls authenticate(reason).
-secenv-system-linux = { path = "crates/secenv-system-linux" }
-secenv-system-macos = { path = "crates/secenv-system-macos" }
 objc2 = { version = "0.6.3", default-features = false, features = ["std"] }
 objc2-foundation = { version = "0.3.2", default-features = false, features = [
     "std",

@@ -264,7 +264,7 @@ struct SystemCheck;
 
 impl SystemCheck {
     fn authenticate(profile_name: &str, operation: ProfileOperation) -> Result<()> {
-        // Platform crates own the prompt. This stays before the first await so the
+        // Platform modules own the prompt. This stays before the first await so the
         // macOS dialog runs on the process main thread.
         system::authenticate(&localized_reason(profile_name, operation))
             .with_context(|| format!("Profile '{profile_name}' requires system authentication"))
@@ -276,7 +276,7 @@ mod system {
     use anyhow::Result;
 
     pub(super) fn authenticate(reason: &str) -> Result<()> {
-        secenv_system_macos::authenticate(reason)
+        crate::system_macos::authenticate(reason)
     }
 }
 
@@ -285,7 +285,7 @@ mod system {
     use anyhow::Result;
 
     pub(super) fn authenticate(reason: &str) -> Result<()> {
-        secenv_system_linux::authenticate(reason)
+        crate::system_linux::authenticate(reason)
     }
 }
 
