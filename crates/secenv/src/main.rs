@@ -9,7 +9,7 @@ mod pgp;
 mod process;
 mod reference;
 mod sealed;
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", not(target_env = "musl")))]
 mod system_linux;
 #[cfg(target_os = "macos")]
 mod system_macos;

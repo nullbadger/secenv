@@ -280,12 +280,21 @@ mod system {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", not(target_env = "musl")))]
 mod system {
     use anyhow::Result;
 
     pub(super) fn authenticate(reason: &str) -> Result<()> {
         crate::system_linux::authenticate(reason)
+    }
+}
+
+#[cfg(all(target_os = "linux", target_env = "musl"))]
+mod system {
+    use anyhow::Result;
+
+    pub(super) fn authenticate(_reason: &str) -> Result<()> {
+        anyhow::bail!("System authentication is not available in musl builds; use a glibc build");
     }
 }
 

@@ -192,7 +192,7 @@ secenv seal --profile production --password "$PROFILE_PASSWORD" --env-var DATABA
 
 On macOS, the system dialog accepts Touch ID or that user's password, not Apple Watch. If Touch ID is unavailable, not enrolled, or not permitted for this process, macOS asks for the password instead of skipping the check. The dialog needs a local graphical session.
 
-On Linux, secenv asks the `sudo` PAM stack. A fingerprint is offered only when that stack includes one. Otherwise the current user's password is read from the terminal. This needs `/dev/tty` and a PAM installation. It does not open a login session.
+On Linux, glibc builds ask the `sudo` PAM stack. A fingerprint is offered only when that stack includes one. Otherwise the current user's password is read from the terminal. This needs `/dev/tty` and a PAM installation. It does not open a login session. Musl builds do not include this check.
 
 On any other platform, or when the platform cannot show its prompt, the command fails.
 
